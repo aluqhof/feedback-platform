@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"service":"feedback-platform"}</customFields>
+            <includeMdc>true</includeMdc>
+            <fieldNames>
+                <timestamp>timestamp</timestamp>
+            </fieldNames>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <logger name="com.feedbackplatform" level="DEBUG"/>
+    <logger name="org.hibernate.SQL" level="WARN"/>
+</configuration>
