@@ -16,13 +16,35 @@ Next.js (App Router) · TypeScript **strict** · React Server Components por def
 
 ```
 src/
-├── middleware.ts           # redirect a /login si no hay sesión
-├── app/                    # rutas (thin): (auth)/ y (app)/[orgSlug]/[projectSlug]/…
-├── components/ui/          # primitivos de design system (Button, Input, Badge, Modal, Table…)
-├── features/<feature>/     # auth, organizations, projects, feedback, issues, comments, members
-│   ├── components/  hooks/  api.ts  schemas.ts
-├── lib/api/client.ts       # fetch tipado contra /api/backend/*, errores ProblemDetails
-└── types/api.d.ts          # GENERADO desde OpenAPI — no editar a mano
+├── middleware.ts               # redirect a /login si no hay sesión
+├── app/                        # rutas (thin): (auth)/ y (app)/[orgSlug]/[projectSlug]/…
+├── components/
+│   └── ui/                     # design system UNIFICADO — SOLO estos primitivos
+│       ├── Button.tsx          # un único Button con variants (primary, secondary, ghost, danger…)
+│       ├── Input.tsx
+│       ├── Badge.tsx
+│       ├── Modal.tsx           # un único Modal, parametrizable
+│       ├── Card.tsx            # un único Card con variants
+│       ├── Table.tsx
+│       ├── Select.tsx
+│       ├── Textarea.tsx
+│       ├── Avatar.tsx
+│       ├── Spinner.tsx
+│       ├── EmptyState.tsx
+│       ├── Skeleton.tsx
+│       ├── Toast.tsx
+│       └── index.ts            # barrel export — importar SIEMPRE desde aquí
+├── features/<feature>/         # auth, organizations, projects, feedback, issues, comments, members
+│   ├── components/             # componentes específicos del feature (NO botones/modales/cards propios)
+│   ├── hooks/                  # hooks de React Query (queries + mutations)
+│   ├── api/                    # funciones de llamada a API (usadas por los hooks)
+│   │   └── queries.ts          # React Query hooks: useXxxQuery, useXxxMutation, useXxxInfiniteQuery
+│   ├── schemas.ts              # validación zod
+│   └── types.ts                # tipos específicos del feature
+├── lib/
+│   ├── api/client.ts           # fetch tipado contra /api/backend/*, errores ProblemDetails
+│   └── query-provider.tsx      # QueryClient provider
+└── types/api.d.ts              # GENERADO desde OpenAPI — no editar a mano
 ```
 
 ## Responsabilidades y límites
@@ -40,6 +62,54 @@ src/
 - Estado global pesado (Redux/Zustand) sin necesidad demostrada.
 
 ## Convenciones
+
+### Reutilización de componentes — OBLIGATORIO
+
+- **Estilo unificado:** existe UN SOLO `Button`, UN SOLO `Modal`, UN SOLO `Card`, etc. en `components/ui/`.
+- **Prohibido** crear componentes de UI duplicados. Si necesitas un botón con un estilo ligeramente diferente, usa las `variants` del `Button` existente o añade una nueva variant. **Nunca** crees un `SubmitButton`, `CancelButton`, `DangerButton` separados.
+- Antes de crear cualquier componente visual, **primero** revisa si ya existe en `components/ui/`. Si existe, úsalo. Si no existe pero es un primitivo genérico (botón, modal, card, badge, input, etc.), créalo en `components/ui/` con variants.
+- Los componentes de `features/*/components/` son composiciones de primitivos UI para un contexto específico (ej: `FeedbackCard`, `IssueDetailHeader`), NO primitivos nuevos.
+- **Regla de oro:** si algo se parece a un botón, modal, card, badge, input → es un `components/ui/` con variants.
+
+### React Query — estructura fija
+
+Toda comunicación con la API sigue este patrón dentro de cada feature:
+
+```
+features/<feature>/
+├── api/
+│   └── queries.ts        # TODOS los hooks de React Query del feature
+└── hooks/                # hooks auxiliares (no relacionados con fetching)
+```
+
+**`api/queries.ts`** contiene SIEMPRE, siguiendo este naming:
+
+```typescript
+// Queries (lectura)
+export const useXxxQuery = (params) => useQuery({ queryKey: [...], queryFn: ... })
+export const useXxxDetailQuery = (id) => useQuery({ queryKey: [...], queryFn: ... })
+export const useXxxInfiniteQuery = (params) => useInfiniteQuery({ ... })
+
+// Mutations (escritura)
+export const useCreateXxxMutation = () => useMutation({ mutationFn: ..., onSuccess: ... })
+export const useUpdateXxxMutation = () => useMutation({ ... })
+export const useDeleteXxxMutation = () => useMutation({ ... })
+
+// Query key factories
+export const xxxKeys = {
+  all: ['xxx'] as const,
+  lists: () => [...xxxKeys.all, 'list'] as const,
+  list: (params: XxxListParams) => [...xxxKeys.lists(), params] as const,
+  details: () => [...xxxKeys.all, 'detail'] as const,
+  detail: (id: string) => [...xxxKeys.details(), id] as const,
+}
+```
+
+- **Nunca** usar `useQuery`/`useMutation` inline en un componente. Siempre a través de los hooks centralizados en `api/queries.ts`.
+- **Nunca** crear fetchers custom fuera de `lib/api/client.ts`.
+- Invalidación de cache: `queryClient.invalidateQueries({ queryKey: xxxKeys.all })` en onSuccess de mutations.
+
+### General
 
 - RSC por defecto; `'use client'` solo en componentes con interactividad real (eventos, hooks de estado).
 - Páginas thin: componen features; no contienen lógica de fetching compleja inline.
@@ -68,8 +138,10 @@ pnpm gen:types    # regenera types desde el OpenAPI del backend
 
 - TypeScript estricto: prohibido `any` sin justificación en comentario.
 - Inglés en código; nombres explícitos.
-- Tailwind con clases utilitarias; extraer a `components/ui` lo que se repita 2+ veces.
+- Tailwind con clases utilitarias; **extraer a `components/ui` lo que se repita 2+ veces** — sin excepciones.
+- Si un estilo de Tailwind se usa en 2+ sitios, pertenece a un componente UI con variants, no copiado.
 - Formato: Prettier + eslint (config en repo); CI exige `lint && test && build` verdes.
+- **Antes de escribir CSS/Tailwind nuevo:** buscar si el componente o patrón ya existe. Reutilizar > crear.
 
 ## Comunicación con otros proyectos
 

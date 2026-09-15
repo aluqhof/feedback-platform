@@ -18,11 +18,53 @@ Modular monolith por dominios (detalle y reglas en `/docs/ARCHITECTURE.md` §2.2
 
 ```
 com.feedbackplatform
-├── auth/ organization/ project/ feedback/ issue/ comment/ attachment/ ingestion/ audit/
+├── auth/
+│   ├── domain/          # entidades JPA, enums
+│   ├── dto/             # request/response DTOs
+│   ├── AuthController.java
+│   ├── AuthService.java
+│   ├── AuthRepository.java
+│   └── AuthMapper.java  # si aplica
+├── organization/
+│   ├── domain/
+│   ├── dto/
+│   ├── OrganizationController.java
+│   ├── OrganizationService.java
+│   ├── OrganizationRepository.java
+│   └── OrganizationMapper.java
+├── project/
+│   ├── domain/
+│   ├── dto/
+│   ├── ProjectController.java
+│   ├── ProjectService.java
+│   ├── ProjectRepository.java
+│   └── ...
+├── feedback/
+├── issue/
+├── comment/
+├── attachment/
+├── ingestion/
+├── audit/
 └── shared/   # config, error, security, persistence, storage, web, util
 ```
 
-Cada dominio: `*Controller` → `*Service` (application) → `*Repository`, con `domain/` (entidades, enums) y `dto/`. Sin ceremonia extra en CRUDs triviales, pero **las entidades JPA nunca se exponen como DTO de API**.
+### Reglas de estructura por modelo
+
+Cada dominio/modelo es una **carpeta autocontenida** con todo lo necesario dentro:
+
+```
+<modelo>/
+├── domain/              # Entidad JPA, enums del dominio, value objects
+├── dto/                 # DTOs de request/response (records)
+├── <Modelo>Controller.java
+├── <Modelo>Service.java
+├── <Modelo>Repository.java
+└── <Modelo>Mapper.java  # solo si hay mapeo complejo
+```
+
+- **Todo lo relacionado con una entidad vive dentro de su carpeta.** No crear carpetas transversales tipo `services/`, `repositories/`, `controllers/`.
+- **Las entidades JPA nunca se exponen como DTO de API.**
+- Sin ceremonia extra en CRUDs triviales.
 
 ## Responsabilidades y límites
 
@@ -71,10 +113,29 @@ Swagger UI (dev): `http://localhost:8080/swagger-ui.html` · OpenAPI: `/v3/api-d
 
 ## Estilo de código
 
-- Inglés en código y comentarios; nombres explícitos (`resolveProjectByPublicKey`, no `getProj`).
-- Constructores para inyección (sin `@Autowired` en campos).
-- Métodos cortos; validación en DTOs con bean-validation; sin lógica en controllers.
+### Lombok — obligatorio
+
+- **Siempre** usar anotaciones de Lombok para eliminar boilerplate:
+  - `@Data`, `@Getter`, `@Setter`, `@Builder`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@ToString`, `@EqualsAndHashCode` en entidades y DTOs.
+  - `@Slf4j` para logging (nunca crear el logger manualmente).
+  - `@RequiredArgsConstructor` para inyección de dependencias por constructor (nunca `@Autowired` en campos).
+  - `@Value` para DTOs inmutables cuando aplique.
+- **Prohibido** escribir getters/setters/constructors/tostring manualmente si Lombok lo cubre.
+
+### Simplicidad ante todo
+
+- **La implementación más corta y legible siempre gana.** Tres líneas claras > veinte líneas "bien abstractas".
 - Sin abstracciones "por si acaso": tres líneas duplicadas son mejores que una abstracción prematura.
+- Métodos cortos (máximo ~20 líneas de lógica real); si crece, extraer a un método privado con nombre descriptivo.
+- Validación en DTOs con bean-validation; sin lógica en controllers.
+- Preferir records de Java para DTOs simples.
+- No crear interfaces de service "por si necesitamos cambiar la implementación" — solo si hay una razón real.
+- Un controller no debe tener más de ~5 endpoints; si tiene más, probablemente es un dominio distinto.
+
+### General
+
+- Inglés en código y comentarios; nombres explícitos (`resolveProjectByPublicKey`, no `getProj`).
+- Inyección por constructor (vía `@RequiredArgsConstructor` de Lombok).
 
 ## Comunicación con otros proyectos
 
